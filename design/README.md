@@ -44,8 +44,8 @@ shadcn の CSS 変数名をそのまま使う。値は `index.html` の `:root` 
 | Public / 推定 などのラベル | `Badge` |
 | アバター | `Avatar` |
 | ツールチップ（グラフ・Bus factor） | `Tooltip`（Base UI） |
-| リポジトリ入力 | `Input` + `Command`（⌘K） |
-| グラフ | `Chart`（Recharts） |
+| リポジトリ入力 | 自作の入力欄（⌘K でフォーカス） |
+| グラフ | CSS と SVG で自作（依存を増やさないため） |
 | 解析中 | `Skeleton` |
 
 ## データソース
