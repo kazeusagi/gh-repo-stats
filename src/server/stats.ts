@@ -1,10 +1,12 @@
 // 1 リポジトリぶんの統計をまとめて作る
 import { env } from 'void/env';
 import { kv } from 'void/kv';
-import type { RepoStats } from '../lib/types';
+import { HTTPException } from 'hono/http-exception';
+import type { RepoStats, StatsResponse } from '../lib/types';
 import { analyze, medianHours } from './analyze';
 import { GitHub, fetchBlame, fetchCommits, fetchRepo, fetchSourceFiles } from './github';
 import { fetchNpm, packageNameOf } from './npm';
+import { acquireLock, finishLock, releaseLock } from './lock';
 import { recordView, saveRepo } from './repos';
 
 const DAY = 86_400_000;
@@ -19,9 +21,8 @@ function countSince(dates: string[] | undefined, since: number, limit: number) {
   return { count, capped: count >= limit };
 }
 
-export async function buildStats(owner: string, name: string): Promise<RepoStats> {
+export async function buildStats(gh: GitHub, owner: string, name: string): Promise<RepoStats> {
   const startedAt = Date.now();
-  const gh = new GitHub(env.GITHUB_TOKEN);
 
   const repo = await fetchRepo(gh, owner, name);
   const branch = repo.defaultBranchRef!;
@@ -121,18 +122,45 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
   };
 }
 
-export async function getStats(owner: string, name: string, refresh = false) {
+/** GraphQL の残りポイントが少なければ、分析を始めずに断る */
+async function ensureRateLimit(gh: GitHub) {
+  const limit = await gh.graphqlRateLimit();
+  if (limit.remaining >= env.RATE_LIMIT_RESERVE) return;
+  const reset = new Date(limit.reset * 1000).toLocaleTimeString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  throw new HTTPException(503, { message: `混み合っているため、新しい分析を受け付けられません。${reset} ごろに回復します` });
+}
+
+export async function getStats(owner: string, name: string, refresh = false): Promise<StatsResponse> {
   const key = cacheKey(owner, name);
   const cached = await kv.get<RepoStats>(key);
+  const ready = (stats: RepoStats): StatsResponse => ({ status: 'ready', stats });
 
   // 再分析は、前回の分析から REFRESH_INTERVAL 経つまで受け付けない
   if (cached && (!refresh || Date.now() < new Date(cached.meta.refreshableAt).getTime())) {
     await recordView(cached.repo.fullName).catch((e) => console.error('recordView failed', e));
-    return { ...cached, meta: { ...cached.meta, cached: true } };
+    return ready({ ...cached, meta: { ...cached.meta, cached: true } });
   }
 
-  const stats = await buildStats(owner, name);
-  await kv.put(key, stats, { ttl: env.CACHE_TTL });
-  await saveRepo(stats).catch((e) => console.error('saveRepo failed', e));
-  return stats;
+  // ほかのリクエストが分析中なら、新しく始めずに待ってもらう
+  const lockId = `${owner}/${name}`.toLowerCase();
+  if (!(await acquireLock(lockId))) {
+    return cached ? ready({ ...cached, meta: { ...cached.meta, cached: true } }) : { status: 'pending' };
+  }
+
+  try {
+    const gh = new GitHub(env.GITHUB_TOKEN);
+    await ensureRateLimit(gh);
+    const stats = await buildStats(gh, owner, name);
+    await kv.put(key, stats, { ttl: env.CACHE_TTL });
+    await finishLock(lockId);
+    await saveRepo(stats).catch((e) => console.error('saveRepo failed', e));
+    return ready(stats);
+  } catch (e) {
+    await releaseLock(lockId).catch((err) => console.error('releaseLock failed', err));
+    throw e;
+  }
 }

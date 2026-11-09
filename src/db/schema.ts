@@ -14,3 +14,11 @@ export const repos = sqliteTable('repos', {
   analyzedAt: text('analyzed_at').notNull(),
   views: integer('views').notNull().default(0),
 });
+
+// 同じリポジトリの分析が同時に走らないようにするためのロック
+export const analyses = sqliteTable('analyses', {
+  id: text('id').primaryKey(),
+  status: text('status', { enum: ['running', 'done'] }).notNull(),
+  startedAt: integer('started_at').notNull(),
+  finishedAt: integer('finished_at'),
+});

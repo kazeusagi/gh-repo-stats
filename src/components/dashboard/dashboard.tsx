@@ -8,12 +8,19 @@ import { Ranking } from './ranking';
 import { RepoHeader } from './repo-header';
 import { AiShare, HealthCard, Languages, NpmCard } from './sidebar';
 
-export function Dashboard({ stats, onRefresh }: { stats: RepoStats; onRefresh: () => void }) {
+type Props = {
+  stats: RepoStats;
+  refreshing: boolean;
+  refreshError: string | null;
+  onRefresh: () => void;
+};
+
+export function Dashboard({ stats, refreshing, refreshError, onRefresh }: Props) {
   const { totals, meta, repo } = stats;
   return (
     <>
       <RepoHeader stats={stats} />
-      <AnalysisStatus meta={meta} onRefresh={onRefresh} />
+      <AnalysisStatus meta={meta} refreshing={refreshing} error={refreshError} onRefresh={onRefresh} />
       {meta.warnings?.map((w) => (
         <p key={w} className="mb-4 rounded-md border border-chart-3/50 bg-chart-3/10 px-3 py-2 text-sm text-chart-3">
           {w}

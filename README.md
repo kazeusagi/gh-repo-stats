@@ -51,6 +51,7 @@ npm run dev
 | `MAX_BLAME_FILES` | 200 | blame するファイル数の上限（8 件で 1 リクエスト） |
 | `CACHE_TTL` | 2592000 | 分析結果を保持する秒数（30 日） |
 | `REFRESH_INTERVAL` | 86400 | 分析から再分析を受け付けるまでの秒数（1 日） |
+| `RATE_LIMIT_RESERVE` | 300 | GitHub GraphQL の残りポイントがこれを下回ったら新しい分析を断る |
 
 上限を超えたぶんは画面下部に「何件中何件を解析したか」として表示されます。
 
@@ -78,7 +79,7 @@ npm run build
 ```
 src/
   pages/            画面（/ と /:owner/:repo）。/ は分析済みリポジトリの一覧
-  routes/api/       API（GET /api/stats/:owner/:repo、?refresh=1 で再解析）
+  routes/api/       API（GET /api/stats/:owner/:repo、?refresh=1 で再分析。分析中は { status: "pending" }）
   server/           GitHub・npm からの取得と集計
   components/ui/    shadcn コンポーネント
   components/dashboard/  ダッシュボードの各カード

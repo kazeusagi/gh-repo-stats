@@ -129,3 +129,6 @@ export type RepoStats = {
     cached: boolean;
   };
 };
+
+/** API の応答。ほかの人が分析中なら pending */
+export type StatsResponse = { status: 'ready'; stats: RepoStats } | { status: 'pending' };
