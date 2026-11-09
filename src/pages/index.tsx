@@ -1,15 +1,9 @@
 import { Link } from '@void/react';
-import { BotIcon, EyeIcon, PackageIcon, StarIcon, TrophyIcon } from 'lucide-react';
+import { BotIcon, EyeIcon, StarIcon } from 'lucide-react';
 import { routeUrl } from 'void/routes';
 import { RepoSearch } from '@/components/repo-search';
 import { avatarSrc, formatCompact, timeAgo } from '@/lib/utils';
 import type { Props } from './index.server';
-
-const FEATURES = [
-  { icon: TrophyIcon, title: '貢献者ランキング', text: 'git blame で、今のコードを誰が書いたかを行単位で集計' },
-  { icon: BotIcon, title: 'AI 支援率', text: 'Co-Authored-By などの署名から、AI が関わったコードを検出' },
-  { icon: PackageIcon, title: 'npm と GitHub の指標', text: 'Star 数、週間ダウンロード数、PR のマージ速度など' },
-];
 
 const repoHref = (fullName: string) => {
   const [owner, repo] = fullName.split('/');
@@ -74,16 +68,6 @@ export default function HomePage({ repos }: Props) {
           </div>
         </section>
       )}
-
-      <div className="mt-16 grid gap-4 sm:grid-cols-3">
-        {FEATURES.map(({ icon: Icon, title, text }) => (
-          <div key={title} className="rounded-lg border bg-card p-4">
-            <Icon className="size-5 text-link" />
-            <h2 className="mt-3 text-sm font-semibold">{title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{text}</p>
-          </div>
-        ))}
-      </div>
     </main>
   );
 }
