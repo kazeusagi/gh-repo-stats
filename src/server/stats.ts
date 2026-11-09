@@ -44,9 +44,9 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
   const blamedBytes = targets.filter((f) => blamedPaths.has(f.path)).reduce((s, f) => s + f.size, 0);
 
   const monthAgo = Date.now() - 30 * DAY;
-  const stars = countSince(repo.stargazers.edges.map((e) => e.starredAt), monthAgo, 100);
-  const forks = countSince(repo.forks.nodes.map((f) => f.createdAt), monthAgo, 100);
-  const langTotal = repo.languages.totalSize || 1;
+  const stars = countSince((repo.stargazers?.edges ?? []).map((e) => e.starredAt), monthAgo, 100);
+  const forks = countSince((repo.forks?.nodes ?? []).map((f) => f.createdAt), monthAgo, 100);
+  const langTotal = repo.languages?.totalSize || 1;
 
   return {
     repo: {
@@ -62,13 +62,13 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
       isArchived: repo.isArchived,
       stars: repo.stargazerCount,
       forks: repo.forkCount,
-      watchers: repo.watchers.totalCount,
+      watchers: repo.watchers?.totalCount ?? 0,
       createdAt: repo.createdAt,
       pushedAt: repo.pushedAt,
       license: repo.licenseInfo?.spdxId ?? repo.licenseInfo?.name ?? null,
-      topics: repo.repositoryTopics.nodes.map((n) => n.topic.name),
+      topics: (repo.repositoryTopics?.nodes ?? []).map((n) => n.topic.name),
       primaryLanguage: repo.primaryLanguage,
-      languages: repo.languages.edges.map((e) => ({
+      languages: (repo.languages?.edges ?? []).map((e) => ({
         name: e.node.name,
         color: e.node.color,
         share: e.size / langTotal,
@@ -83,14 +83,14 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
       forks30dCapped: forks.capped,
     },
     health: {
-      openIssues: repo.openIssues.totalCount,
-      closedIssues: repo.closedIssues.totalCount,
-      openPRs: repo.openPRs.totalCount,
-      mergedPRs: repo.mergedPRs.totalCount,
-      prMergeMedianHours: medianHours(repo.recentMerged.nodes.map((n) => ({ from: n.createdAt, to: n.mergedAt }))),
-      issueCloseMedianHours: medianHours(repo.recentClosed.nodes.map((n) => ({ from: n.createdAt, to: n.closedAt }))),
-      releases: repo.releases.totalCount,
-      latestRelease: repo.releases.nodes[0]
+      openIssues: repo.openIssues?.totalCount ?? 0,
+      closedIssues: repo.closedIssues?.totalCount ?? 0,
+      openPRs: repo.openPRs?.totalCount ?? 0,
+      mergedPRs: repo.mergedPRs?.totalCount ?? 0,
+      prMergeMedianHours: medianHours((repo.recentMerged?.nodes ?? []).map((n) => ({ from: n.createdAt, to: n.mergedAt }))),
+      issueCloseMedianHours: medianHours((repo.recentClosed?.nodes ?? []).map((n) => ({ from: n.createdAt, to: n.closedAt }))),
+      releases: repo.releases?.totalCount ?? 0,
+      latestRelease: repo.releases?.nodes[0]
         ? { tag: repo.releases.nodes[0].tagName, publishedAt: repo.releases.nodes[0].publishedAt }
         : null,
     },

@@ -4,6 +4,18 @@ import type { BlameFile, RawAuthor, RawCommit } from './analyze';
 
 const API = 'https://api.github.com';
 
+type GqlError = { type?: string; message: string };
+
+/** GitHub のエラーを、原因がわかるメッセージに変える */
+function githubError(errors: GqlError[]) {
+  const first = errors[0];
+  if (!first) return new HTTPException(502, { message: 'GitHub API から応答がありませんでした' });
+  if (first.type === 'NOT_FOUND') {
+    return new HTTPException(404, { message: `リポジトリが見つかりません（${first.message}）` });
+  }
+  return new HTTPException(502, { message: `GitHub API エラー: ${first.message}` });
+}
+
 export class GitHub {
   constructor(private token: string) {}
 
@@ -22,22 +34,20 @@ export class GitHub {
       body: JSON.stringify({ query, variables }),
     });
     if (res.status === 401) throw new HTTPException(500, { message: 'GITHUB_TOKEN が無効です' });
-    if (!res.ok) throw new HTTPException(502, { message: `GitHub API エラー (${res.status})` });
-    const json = (await res.json()) as { data?: T; errors?: { type?: string; message: string }[] };
-    if (json.errors?.some((e) => e.type === 'NOT_FOUND')) {
-      throw new HTTPException(404, { message: 'リポジトリが見つかりません' });
-    }
-    if (json.errors?.some((e) => e.type === 'RATE_LIMITED')) {
+    if (!res.ok) throw new HTTPException(502, { message: `GitHub API エラー (${res.status}): ${await res.text()}` });
+    const json = (await res.json()) as { data?: T | null; errors?: GqlError[] };
+    const errors = json.errors ?? [];
+    if (errors.some((e) => e.type === 'RATE_LIMITED')) {
       throw new HTTPException(429, { message: 'GitHub API のレート制限に達しました' });
     }
     // blame の一部失敗などは部分的なデータのまま返す
-    if (!json.data) throw new HTTPException(502, { message: json.errors?.[0]?.message ?? 'GitHub API エラー' });
-    return { data: json.data, errors: json.errors ?? [] };
+    if (!json.data) throw githubError(errors);
+    return { data: json.data, errors };
   }
 
   async rest<T>(path: string) {
     const res = await fetch(`${API}${path}`, { headers: this.headers() });
-    if (!res.ok) throw new HTTPException(502, { message: `GitHub API エラー (${res.status})` });
+    if (!res.ok) throw new HTTPException(502, { message: `GitHub API エラー (${res.status}): ${await res.text()}` });
     return (await res.json()) as T;
   }
 }
@@ -122,8 +132,9 @@ export type RepoInfo = {
 };
 
 export async function fetchRepo(gh: GitHub, owner: string, name: string) {
-  const { data } = await gh.graphql<{ repository: RepoInfo | null }>(REPO_QUERY, { owner, name });
-  if (!data.repository) throw new HTTPException(404, { message: 'リポジトリが見つかりません' });
+  const { data, errors } = await gh.graphql<{ repository: RepoInfo | null }>(REPO_QUERY, { owner, name });
+  if (!data.repository) throw githubError(errors);
+  if (errors.length > 0) console.warn('repo query partial errors', errors);
   if (!data.repository.defaultBranchRef) throw new HTTPException(422, { message: 'コミットがありません' });
   return data.repository;
 }
@@ -178,8 +189,9 @@ export async function fetchCommits(gh: GitHub, owner: string, name: string, max:
   type Page = { repository: { defaultBranchRef: { target: { history: History } } } };
 
   while (true) {
-    const page: { data: Page } = await gh.graphql<Page>(HISTORY_QUERY, { owner, name, cursor });
-    const history: History = page.data.repository.defaultBranchRef.target.history;
+    const page: { data: Page; errors: GqlError[] } = await gh.graphql<Page>(HISTORY_QUERY, { owner, name, cursor });
+    const history: History | undefined = page.data.repository?.defaultBranchRef?.target?.history;
+    if (!history) throw githubError(page.errors);
     for (const c of history.nodes) {
       commits.push({ ...toCommit(c), additions: c.additions, deletions: c.deletions });
     }
