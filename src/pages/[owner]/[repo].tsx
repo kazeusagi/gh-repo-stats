@@ -49,7 +49,7 @@ export default function RepoPage() {
             <span className="font-mono">
               {owner}/{repo}
             </span>
-            を解析しています。初回は数十秒かかることがあります
+            を分析しています。初回は数十秒かかることがあります
           </p>
           <DashboardSkeleton />
         </>

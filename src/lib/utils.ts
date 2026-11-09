@@ -30,3 +30,8 @@ export function formatDuration(hours: number | null) {
   if (hours < 24) return `${hours.toFixed(1)} 時間`;
   return `${(hours / 24).toFixed(1)} 日`;
 }
+
+/** GitHub のアバター画像 URL にサイズ指定を付ける */
+export function avatarSrc(url: string, size: number) {
+  return `${url}${url.includes('?') ? '&' : '?'}s=${size}`;
+}

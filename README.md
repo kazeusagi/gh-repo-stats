@@ -25,7 +25,9 @@ Cloudflare Workers では `git` を実行できないため、GitHub API でデ�
 1. GraphQL でリポジトリ情報・コミット履歴（追加/削除行数とメッセージ付き）を取得
 2. REST の `git/trees` でファイル一覧を取得し、サイズの大きいソースファイルから順に GraphQL の `blame` を実行
 3. `src/server/analyze.ts` で人ごと・期間ごとに集計（同じメールのコミットは同一人物にまとめる）
-4. 結果を Workers KV に `CACHE_TTL` 秒キャッシュ
+4. 分析結果を Workers KV に 30 日間保存し、一覧用の情報とビュー数を D1 に記録
+
+分析結果は 30 日間保持します。分析から 1 日経つと、画面の「データを更新」から再分析できます（それより前の依頼はサーバー側でも受け付けません）。トップ画面には、保持期間内のリポジトリをビュー数の多い順に表示します。
 
 npm パッケージは `package.json` の `name` から探し、npm 側の `repository` がこのリポジトリを指している場合だけ表示します。
 
@@ -33,11 +35,12 @@ npm パッケージは `package.json` の `name` から探し、npm 側の `repo
 
 ```sh
 npm install
-echo "GITHUB_TOKEN=ghp_xxx" > .env
+echo "GITHUB_TOKEN=github_pat_xxx" > .env
+npx void db migrate   # ローカルの D1 にテーブルを作成
 npm run dev
 ```
 
-`GITHUB_TOKEN` は GraphQL API に必要です。公開リポジトリだけなら、権限なしの fine-grained token で動きます。
+`GITHUB_TOKEN` は GraphQL API に必要です。Fine-grained トークンで「Public repositories (read-only)」を選び、権限は何も付けずに発行してください。このトークンでは他人のリポジトリの Star 履歴が読めないため、Star の 30 日増加数は表示されません。
 
 ### 環境変数
 
@@ -46,7 +49,8 @@ npm run dev
 | `GITHUB_TOKEN` | （必須） | GitHub のトークン |
 | `MAX_COMMITS` | 3000 | 取得するコミット数の上限（100 件で 1 リクエスト） |
 | `MAX_BLAME_FILES` | 200 | blame するファイル数の上限（8 件で 1 リクエスト） |
-| `CACHE_TTL` | 3600 | キャッシュ秒数 |
+| `CACHE_TTL` | 2592000 | 分析結果を保持する秒数（30 日） |
+| `REFRESH_INTERVAL` | 86400 | 分析から再分析を受け付けるまでの秒数（1 日） |
 
 上限を超えたぶんは画面下部に「何件中何件を解析したか」として表示されます。
 
@@ -54,8 +58,10 @@ npm run dev
 
 ```sh
 npx void secret put GITHUB_TOKEN
-npm run deploy
+npm run deploy   # D1 のマイグレーションも適用される
 ```
+
+`src/db/schema.ts` を変更したら `npx void db generate` でマイグレーションを作り、コミットしてください。
 
 既定の上限だと 1 回の解析で GitHub API へ 60 前後のリクエストを送ります。Workers の無料プランはサブリクエスト数や CPU 時間の上限が低いため、有料プランを使うか、`MAX_COMMITS` と `MAX_BLAME_FILES` を下げてください。
 
@@ -71,11 +77,12 @@ npm run build
 
 ```
 src/
-  pages/            画面（/ と /:owner/:repo）
+  pages/            画面（/ と /:owner/:repo）。/ は分析済みリポジトリの一覧
   routes/api/       API（GET /api/stats/:owner/:repo、?refresh=1 で再解析）
   server/           GitHub・npm からの取得と集計
   components/ui/    shadcn コンポーネント
   components/dashboard/  ダッシュボードの各カード
+  db/               D1 のスキーマとマイグレーション
   env.ts            環境変数の定義
 ```
 

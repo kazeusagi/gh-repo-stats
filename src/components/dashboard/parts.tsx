@@ -3,7 +3,7 @@ import { BotIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import type { ContributorKind } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { avatarSrc, cn } from '@/lib/utils';
 
 export function Panel({
   title,
@@ -66,7 +66,7 @@ export function PersonAvatar({
   }
   return (
     <Avatar className={cn('size-8', className)}>
-      {avatarUrl && <AvatarImage src={`${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}s=64`} alt="" />}
+      {avatarUrl && <AvatarImage src={avatarSrc(avatarUrl, 64)} alt="" />}
       <AvatarFallback className="text-xs font-semibold text-white" style={{ background: colorOf(id) }}>
         {name.slice(0, 1).toUpperCase()}
       </AvatarFallback>

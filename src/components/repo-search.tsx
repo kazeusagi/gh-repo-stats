@@ -69,7 +69,7 @@ export function RepoSearch({ defaultValue = '', size = 'default' }: { defaultVal
         <kbd className="hidden rounded border px-1.5 font-mono text-[11px] text-muted-foreground sm:inline">⌘K</kbd>
       </label>
       <Button type="submit" size={lg ? 'lg' : 'default'} className={cn('bg-primary text-primary-foreground hover:bg-primary/90', lg && 'h-11 px-5')}>
-        解析
+        分析
       </Button>
     </form>
   );

@@ -12,10 +12,27 @@ const reply = (body: unknown) => new Response(JSON.stringify(body), { status: 20
 afterEach(() => vi.unstubAllGlobals());
 
 describe('fetchRepo', () => {
+  it('stargazers だけ拒否されても、通常の問い合わせは 1 回で済む', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const { query } = JSON.parse(init.body as string) as { query: string };
+      calls.push(query);
+      if (query.includes('stargazers')) {
+        return reply({ data: { repository: null }, errors: [{ type: 'FORBIDDEN', message: 'denied', path: ['repository', 'stargazers'] }] });
+      }
+      return reply({ data: { repository: { ...core, watchers: { totalCount: 5 } } } });
+    });
+    const repo = await fetchRepo(new GitHub('t'), 'vercel', 'next.js');
+    expect(calls).toHaveLength(2);
+    expect(repo.watchers?.totalCount).toBe(5);
+    expect(repo.stargazers).toBeUndefined();
+  });
+
   it('読めない項目があっても、残りの項目で続行する', async () => {
     const denied = { message: 'Resource not accessible by personal access token', path: ['repository', 'openIssues'] };
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
       const { query } = JSON.parse(init.body as string) as { query: string };
+      if (query.includes('stargazers')) return reply({ data: { repository: { stargazers: { edges: [] } } } });
       if (query.includes('nameWithOwner') && query.includes('watchers')) {
         return reply({ data: { repository: null }, errors: [denied] }); // 全項目まとめて
       }
@@ -29,6 +46,7 @@ describe('fetchRepo', () => {
     expect(repo.nameWithOwner).toBe('vercel/next.js');
     expect(repo.watchers?.totalCount).toBe(5);
     expect(repo.openIssues).toBeUndefined();
+    expect(repo.stargazers?.edges).toEqual([]);
   });
 
   it('基本情報が読めないときは GitHub のエラー文と場所を返す', async () => {

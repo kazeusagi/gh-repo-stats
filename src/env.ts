@@ -1,12 +1,14 @@
 import { defineEnv, number, string } from 'void/env';
 
 export default defineEnv({
-  // GraphQL API に必要（public_repo 読み取り権限があれば OK）
+  // GraphQL API に必要（公開リポジトリの読み取りだけの Fine-grained トークンで OK）
   GITHUB_TOKEN: string(),
   // 取得するコミットの上限（100 件で 1 リクエスト）
   MAX_COMMITS: number().default(3000),
   // git blame をかけるファイル数の上限（サイズの大きい順。8 件で 1 リクエスト）
   MAX_BLAME_FILES: number().default(200),
-  // 結果のキャッシュ秒数
-  CACHE_TTL: number().default(3600),
+  // 分析結果を保持する秒数（30 日）
+  CACHE_TTL: number().default(30 * 86400),
+  // 分析してから再分析を受け付けるまでの秒数（1 日）
+  REFRESH_INTERVAL: number().default(86400),
 });
