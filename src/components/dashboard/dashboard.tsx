@@ -1,8 +1,7 @@
-import { RefreshCwIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { RepoStats } from '@/lib/types';
 import { formatNumber } from '@/lib/utils';
+import { AnalysisStatus } from './analysis-status';
 import { FileOwnership, Heatmap, MonthlyChart } from './activity';
 import { KpiGrid } from './kpi-grid';
 import { Ranking } from './ranking';
@@ -14,6 +13,7 @@ export function Dashboard({ stats, onRefresh }: { stats: RepoStats; onRefresh: (
   return (
     <>
       <RepoHeader stats={stats} />
+      <AnalysisStatus meta={meta} onRefresh={onRefresh} />
       {meta.warnings?.map((w) => (
         <p key={w} className="mb-4 rounded-md border border-chart-3/50 bg-chart-3/10 px-3 py-2 text-sm text-chart-3">
           {w}
@@ -34,22 +34,18 @@ export function Dashboard({ stats, onRefresh }: { stats: RepoStats; onRefresh: (
           <HealthCard stats={stats} />
         </aside>
       </div>
-      <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t py-5 text-xs text-muted-foreground">
+      <footer className="mt-10 border-t py-5 text-xs text-muted-foreground">
         <div className="flex flex-col gap-1">
           <span>
-            解析 {new Date(meta.analyzedAt).toLocaleString('ja-JP')} · <span className="font-mono">{repo.headSha.slice(0, 7)}</span> ·{' '}
-            {(meta.durationMs / 1000).toFixed(1)}s{meta.cached && ' · キャッシュ'}
+            分析対象 <span className="font-mono">{repo.headSha.slice(0, 7)}</span> · 所要時間 {(meta.durationMs / 1000).toFixed(1)}s
           </span>
           <span>
             コミット {formatNumber(totals.analyzedCommits)} / {formatNumber(totals.commits)} 件、blame{' '}
             {formatNumber(totals.blamedFiles)} / {formatNumber(totals.files)} ファイル（コード量の{' '}
-            {Math.round(totals.blameCoverage * 100)}%）を解析
+            {Math.round(totals.blameCoverage * 100)}%）を分析
             {meta.commitsTruncated && '。古いコミットは省略しています'}
           </span>
         </div>
-        <Button variant="outline" size="sm" onClick={onRefresh}>
-          <RefreshCwIcon /> 再解析
-        </Button>
       </footer>
     </>
   );

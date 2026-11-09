@@ -105,7 +105,7 @@ export type RepoStats = {
     activeContributors90d: number;
     files: number;
     blamedFiles: number;
-    blameCoverage: number; // 解析したファイルのバイト比 0-1
+    blameCoverage: number; // 分析したファイルのバイト比 0-1
     lines: number;
     weeklyAvgCommits: number;
     busFactor: number;
@@ -122,6 +122,7 @@ export type RepoStats = {
   files: FileOwnership[];
   meta: {
     analyzedAt: string;
+    refreshableAt: string; // この時刻を過ぎたら再分析できる
     durationMs: number;
     commitsTruncated: boolean;
     warnings: string[];

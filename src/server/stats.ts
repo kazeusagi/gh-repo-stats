@@ -5,9 +5,10 @@ import type { RepoStats } from '../lib/types';
 import { analyze, medianHours } from './analyze';
 import { GitHub, fetchBlame, fetchCommits, fetchRepo, fetchSourceFiles } from './github';
 import { fetchNpm, packageNameOf } from './npm';
+import { recordView, saveRepo } from './repos';
 
 const DAY = 86_400_000;
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 
 export const cacheKey = (owner: string, name: string) =>
   `stats:${CACHE_VERSION}:${owner}/${name}`.toLowerCase();
@@ -111,6 +112,7 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
     files: result.files,
     meta: {
       analyzedAt: new Date().toISOString(),
+      refreshableAt: new Date(Date.now() + env.REFRESH_INTERVAL * 1000).toISOString(),
       durationMs: Date.now() - startedAt,
       commitsTruncated: history.truncated,
       warnings: blameFailures.length > 0 && blame.length === 0 ? [`blame を取得できませんでした: ${blameFailures[0]}`] : [],
@@ -121,11 +123,16 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
 
 export async function getStats(owner: string, name: string, refresh = false) {
   const key = cacheKey(owner, name);
-  if (!refresh) {
-    const cached = await kv.get<RepoStats>(key);
-    if (cached) return { ...cached, meta: { ...cached.meta, cached: true } };
+  const cached = await kv.get<RepoStats>(key);
+
+  // 再分析は、前回の分析から REFRESH_INTERVAL 経つまで受け付けない
+  if (cached && (!refresh || Date.now() < new Date(cached.meta.refreshableAt).getTime())) {
+    await recordView(cached.repo.fullName).catch((e) => console.error('recordView failed', e));
+    return { ...cached, meta: { ...cached.meta, cached: true } };
   }
+
   const stats = await buildStats(owner, name);
   await kv.put(key, stats, { ttl: env.CACHE_TTL });
+  await saveRepo(stats).catch((e) => console.error('saveRepo failed', e));
   return stats;
 }
