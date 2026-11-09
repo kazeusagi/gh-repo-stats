@@ -1,6 +1,6 @@
 # gh-repo-stats
 
-GitHub リポジトリを解析して、誰が何行・何コミット書いたかのランキング、AI が関わったコードの割合、Star 数や npm の週間ダウンロード数などを表示する Web アプリです。
+GitHub リポジトリを分析して、誰が何行・何コミット書いたかのランキング、AI が関わったコードの割合、Star 数や npm の週間ダウンロード数などを表示する Web アプリです。
 
 - フレームワーク: [Void](https://void.cloud)（Vite + Cloudflare Workers）
 - UI: React / Tailwind CSS v4 / shadcn（Base UI 版, `base-nova`）
@@ -53,7 +53,13 @@ npm run dev
 | `REFRESH_INTERVAL` | 86400 | 分析から再分析を受け付けるまでの秒数（1 日） |
 | `RATE_LIMIT_RESERVE` | 300 | GitHub GraphQL の残りポイントがこれを下回ったら新しい分析を断る |
 
-上限を超えたぶんは画面下部に「何件中何件を解析したか」として表示されます。
+上限を超えたぶんは画面下部に「何件中何件を分析したか」として表示されます。
+
+### レート制限への対策
+
+- 同じリポジトリの分析は同時に 1 つだけ走らせます（D1 の `analyses` テーブルでロック）。後から来たリクエストには `{ "status": "pending" }` を返し、画面が 5 秒おきに完了を確認します
+- 分析を始める前に GitHub の `/rate_limit` で残りポイントを確認し、`RATE_LIMIT_RESERVE` を下回っていれば 503 で断ります
+- 1 回の分析で使う GraphQL のポイントは、既定の上限で 60 前後です（1 時間あたり 5,000 ポイントまで）
 
 ## デプロイ
 
@@ -64,7 +70,7 @@ npm run deploy   # D1 のマイグレーションも適用される
 
 `src/db/schema.ts` を変更したら `npx void db generate` でマイグレーションを作り、コミットしてください。
 
-既定の上限だと 1 回の解析で GitHub API へ 60 前後のリクエストを送ります。Workers の無料プランはサブリクエスト数や CPU 時間の上限が低いため、有料プランを使うか、`MAX_COMMITS` と `MAX_BLAME_FILES` を下げてください。
+既定の上限だと 1 回の分析で GitHub API へ 60 前後のリクエストを送ります。Workers の無料プランはサブリクエスト数や CPU 時間の上限が低いため、有料プランを使うか、`MAX_COMMITS` と `MAX_BLAME_FILES` を下げてください。
 
 ## 開発
 
