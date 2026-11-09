@@ -40,7 +40,8 @@ function Kpi({
   );
 }
 
-function Growth({ value, capped }: { value: number; capped: boolean }) {
+function Growth({ value, capped }: { value: number | null; capped: boolean }) {
+  if (value === null) return null;
   return (
     <>
       <span className="font-medium text-chart-2">

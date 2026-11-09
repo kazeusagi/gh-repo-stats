@@ -7,12 +7,13 @@ import { GitHub, fetchBlame, fetchCommits, fetchRepo, fetchSourceFiles } from '.
 import { fetchNpm, packageNameOf } from './npm';
 
 const DAY = 86_400_000;
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 
 export const cacheKey = (owner: string, name: string) =>
   `stats:${CACHE_VERSION}:${owner}/${name}`.toLowerCase();
 
-function countSince(dates: string[], since: number, limit: number) {
+function countSince(dates: string[] | undefined, since: number, limit: number) {
+  if (!dates) return { count: null, capped: false };
   const count = dates.filter((d) => new Date(d).getTime() >= since).length;
   return { count, capped: count >= limit };
 }
@@ -36,7 +37,7 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
   ]);
 
   const targets = sourceFiles.slice(0, env.MAX_BLAME_FILES);
-  const blame = await fetchBlame(gh, ownerLogin, repoName, sha, targets.map((f) => f.path));
+  const { files: blame, failures: blameFailures } = await fetchBlame(gh, ownerLogin, repoName, sha, targets.map((f) => f.path));
 
   const result = analyze(history.commits, blame);
   const totalBytes = sourceFiles.reduce((s, f) => s + f.size, 0);
@@ -44,8 +45,8 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
   const blamedBytes = targets.filter((f) => blamedPaths.has(f.path)).reduce((s, f) => s + f.size, 0);
 
   const monthAgo = Date.now() - 30 * DAY;
-  const stars = countSince((repo.stargazers?.edges ?? []).map((e) => e.starredAt), monthAgo, 100);
-  const forks = countSince((repo.forks?.nodes ?? []).map((f) => f.createdAt), monthAgo, 100);
+  const stars = countSince(repo.stargazers?.edges.map((e) => e.starredAt), monthAgo, 100);
+  const forks = countSince(repo.forks?.nodes.map((f) => f.createdAt), monthAgo, 100);
   const langTotal = repo.languages?.totalSize || 1;
 
   return {
@@ -62,7 +63,7 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
       isArchived: repo.isArchived,
       stars: repo.stargazerCount,
       forks: repo.forkCount,
-      watchers: repo.watchers?.totalCount ?? 0,
+      watchers: repo.watchers?.totalCount ?? null,
       createdAt: repo.createdAt,
       pushedAt: repo.pushedAt,
       license: repo.licenseInfo?.spdxId ?? repo.licenseInfo?.name ?? null,
@@ -83,13 +84,13 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
       forks30dCapped: forks.capped,
     },
     health: {
-      openIssues: repo.openIssues?.totalCount ?? 0,
-      closedIssues: repo.closedIssues?.totalCount ?? 0,
-      openPRs: repo.openPRs?.totalCount ?? 0,
-      mergedPRs: repo.mergedPRs?.totalCount ?? 0,
+      openIssues: repo.openIssues?.totalCount ?? null,
+      closedIssues: repo.closedIssues?.totalCount ?? null,
+      openPRs: repo.openPRs?.totalCount ?? null,
+      mergedPRs: repo.mergedPRs?.totalCount ?? null,
       prMergeMedianHours: medianHours((repo.recentMerged?.nodes ?? []).map((n) => ({ from: n.createdAt, to: n.mergedAt }))),
       issueCloseMedianHours: medianHours((repo.recentClosed?.nodes ?? []).map((n) => ({ from: n.createdAt, to: n.closedAt }))),
-      releases: repo.releases?.totalCount ?? 0,
+      releases: repo.releases?.totalCount ?? null,
       latestRelease: repo.releases?.nodes[0]
         ? { tag: repo.releases.nodes[0].tagName, publishedAt: repo.releases.nodes[0].publishedAt }
         : null,
@@ -112,6 +113,7 @@ export async function buildStats(owner: string, name: string): Promise<RepoStats
       analyzedAt: new Date().toISOString(),
       durationMs: Date.now() - startedAt,
       commitsTruncated: history.truncated,
+      warnings: blameFailures.length > 0 && blame.length === 0 ? [`blame を取得できませんでした: ${blameFailures[0]}`] : [],
       cached: false,
     },
   };

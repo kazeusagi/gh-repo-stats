@@ -4,7 +4,7 @@ import type { BlameFile, RawAuthor, RawCommit } from './analyze';
 
 const API = 'https://api.github.com';
 
-type GqlError = { type?: string; message: string };
+type GqlError = { type?: string; message: string; path?: (string | number)[] };
 
 /** GitHub のエラーを、原因がわかるメッセージに変える */
 function githubError(errors: GqlError[]) {
@@ -13,7 +13,8 @@ function githubError(errors: GqlError[]) {
   if (first.type === 'NOT_FOUND') {
     return new HTTPException(404, { message: `リポジトリが見つかりません（${first.message}）` });
   }
-  return new HTTPException(502, { message: `GitHub API エラー: ${first.message}` });
+  const where = first.path ? `（${first.path.join('.')}）` : '';
+  return new HTTPException(502, { message: `GitHub API エラー: ${first.message}${where}` });
 }
 
 export class GitHub {
@@ -54,48 +55,54 @@ export class GitHub {
 
 // ---------- リポジトリ情報 ----------
 
-const REPO_QUERY = /* GraphQL */ `
+const CORE_FIELDS = /* GraphQL */ `
+  name
+  nameWithOwner
+  url
+  description
+  homepageUrl
+  isPrivate
+  isFork
+  isArchived
+  stargazerCount
+  forkCount
+  createdAt
+  pushedAt
+  owner { login avatarUrl }
+  licenseInfo { spdxId name }
+  primaryLanguage { name color }
+  languages(first: 8, orderBy: { field: SIZE, direction: DESC }) {
+    totalSize
+    edges { size node { name color } }
+  }
+  repositoryTopics(first: 20) { nodes { topic { name } } }
+  defaultBranchRef {
+    name
+    target { ... on Commit { oid history { totalCount } } }
+  }
+  packageJson: object(expression: "HEAD:package.json") { ... on Blob { text } }
+`;
+
+// トークンの権限によっては読めない項目。読めなければ飛ばす
+const OPTIONAL_SECTIONS = [
+  'watchers { totalCount }',
+  `openIssues: issues(states: OPEN) { totalCount }
+   closedIssues: issues(states: CLOSED) { totalCount }
+   recentClosed: issues(states: CLOSED, last: 50) { nodes { createdAt closedAt } }`,
+  `openPRs: pullRequests(states: OPEN) { totalCount }
+   mergedPRs: pullRequests(states: MERGED) { totalCount }
+   recentMerged: pullRequests(states: MERGED, last: 50) { nodes { createdAt mergedAt } }`,
+  `releases(first: 1, orderBy: { field: CREATED_AT, direction: DESC }) {
+     totalCount
+     nodes { tagName publishedAt }
+   }`,
+  'stargazers(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { edges { starredAt } }',
+  'forks(first: 100, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { createdAt } }',
+];
+
+const repoQuery = (fields: string) => /* GraphQL */ `
   query ($owner: String!, $name: String!) {
-    repository(owner: $owner, name: $name) {
-      name
-      nameWithOwner
-      url
-      description
-      homepageUrl
-      isPrivate
-      isFork
-      isArchived
-      stargazerCount
-      forkCount
-      createdAt
-      pushedAt
-      owner { login avatarUrl }
-      watchers { totalCount }
-      licenseInfo { spdxId name }
-      primaryLanguage { name color }
-      languages(first: 8, orderBy: { field: SIZE, direction: DESC }) {
-        totalSize
-        edges { size node { name color } }
-      }
-      repositoryTopics(first: 20) { nodes { topic { name } } }
-      defaultBranchRef {
-        name
-        target { ... on Commit { oid history { totalCount } } }
-      }
-      openIssues: issues(states: OPEN) { totalCount }
-      closedIssues: issues(states: CLOSED) { totalCount }
-      openPRs: pullRequests(states: OPEN) { totalCount }
-      mergedPRs: pullRequests(states: MERGED) { totalCount }
-      recentMerged: pullRequests(states: MERGED, last: 50) { nodes { createdAt mergedAt } }
-      recentClosed: issues(states: CLOSED, last: 50) { nodes { createdAt closedAt } }
-      releases(first: 1, orderBy: { field: CREATED_AT, direction: DESC }) {
-        totalCount
-        nodes { tagName publishedAt }
-      }
-      stargazers(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { edges { starredAt } }
-      forks(first: 100, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { createdAt } }
-      packageJson: object(expression: "HEAD:package.json") { ... on Blob { text } }
-    }
+    repository(owner: $owner, name: $name) { ${fields} }
   }
 `;
 
@@ -113,30 +120,46 @@ export type RepoInfo = {
   createdAt: string;
   pushedAt: string | null;
   owner: { login: string; avatarUrl: string };
-  watchers: { totalCount: number };
+  watchers?: { totalCount: number };
   licenseInfo: { spdxId: string | null; name: string } | null;
   primaryLanguage: { name: string; color: string | null } | null;
   languages: { totalSize: number; edges: { size: number; node: { name: string; color: string | null } }[] };
   repositoryTopics: { nodes: { topic: { name: string } }[] };
   defaultBranchRef: { name: string; target: { oid: string; history: { totalCount: number } } } | null;
-  openIssues: { totalCount: number };
-  closedIssues: { totalCount: number };
-  openPRs: { totalCount: number };
-  mergedPRs: { totalCount: number };
-  recentMerged: { nodes: { createdAt: string; mergedAt: string | null }[] };
-  recentClosed: { nodes: { createdAt: string; closedAt: string | null }[] };
-  releases: { totalCount: number; nodes: { tagName: string; publishedAt: string | null }[] };
-  stargazers: { edges: { starredAt: string }[] };
-  forks: { nodes: { createdAt: string }[] };
+  openIssues?: { totalCount: number };
+  closedIssues?: { totalCount: number };
+  openPRs?: { totalCount: number };
+  mergedPRs?: { totalCount: number };
+  recentMerged?: { nodes: { createdAt: string; mergedAt: string | null }[] };
+  recentClosed?: { nodes: { createdAt: string; closedAt: string | null }[] };
+  releases?: { totalCount: number; nodes: { tagName: string; publishedAt: string | null }[] };
+  stargazers?: { edges: { starredAt: string }[] };
+  forks?: { nodes: { createdAt: string }[] };
   packageJson: { text: string | null } | null;
 };
 
 export async function fetchRepo(gh: GitHub, owner: string, name: string) {
-  const { data, errors } = await gh.graphql<{ repository: RepoInfo | null }>(REPO_QUERY, { owner, name });
-  if (!data.repository) throw githubError(errors);
-  if (errors.length > 0) console.warn('repo query partial errors', errors);
-  if (!data.repository.defaultBranchRef) throw new HTTPException(422, { message: 'コミットがありません' });
-  return data.repository;
+  type Result = { repository: RepoInfo | null };
+  const vars = { owner, name };
+
+  // まず全項目を 1 回で取る。失敗したら項目ごとに分けて取り直す
+  const full = await gh.graphql<Result>(repoQuery(CORE_FIELDS + OPTIONAL_SECTIONS.join('\n')), vars);
+  let repo = full.data.repository;
+  if (!repo) {
+    if (full.errors.some((e) => e.type === 'NOT_FOUND')) throw githubError(full.errors);
+    const core = await gh.graphql<Result>(repoQuery(CORE_FIELDS), vars);
+    if (!core.data.repository) throw githubError(core.errors);
+    const sections = await Promise.allSettled(
+      OPTIONAL_SECTIONS.map((section) => gh.graphql<Result>(repoQuery(section), vars)),
+    );
+    repo = core.data.repository;
+    for (const r of sections) {
+      if (r.status === 'fulfilled' && r.value.data.repository) Object.assign(repo, r.value.data.repository);
+      else console.warn('skipped repo section', r.status === 'fulfilled' ? r.value.errors : r.reason);
+    }
+  }
+  if (!repo.defaultBranchRef) throw new HTTPException(422, { message: 'コミットがありません' });
+  return repo;
 }
 
 // ---------- コミット履歴 ----------
@@ -271,6 +294,7 @@ export async function fetchBlame(
   for (let i = 0; i < paths.length; i += BLAME_BATCH) batches.push(paths.slice(i, i + BLAME_BATCH));
 
   const results: BlameFile[] = [];
+  const failures: string[] = [];
   let next = 0;
   const worker = async () => {
     while (next < batches.length) {
@@ -280,9 +304,10 @@ export async function fetchBlame(
       } catch (e) {
         if (e instanceof HTTPException && e.status === 429) throw e;
         // 巨大ファイルなどで失敗したバッチは飛ばす
+        failures.push(e instanceof Error ? e.message : String(e));
       }
     }
   };
   await Promise.all(Array.from({ length: concurrency }, worker));
-  return results;
+  return { files: results, failures };
 }
