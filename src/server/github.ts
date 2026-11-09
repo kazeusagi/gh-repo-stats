@@ -96,9 +96,11 @@ const OPTIONAL_SECTIONS = [
      totalCount
      nodes { tagName publishedAt }
    }`,
-  'stargazers(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { edges { starredAt } }',
   'forks(first: 100, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { createdAt } }',
 ];
+
+// Fine-grained トークンでは他人のリポジトリの stargazers が拒否されるので、常に別で取る
+const STARGAZERS = 'stargazers(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { edges { starredAt } }';
 
 const repoQuery = (fields: string) => /* GraphQL */ `
   query ($owner: String!, $name: String!) {
@@ -143,7 +145,10 @@ export async function fetchRepo(gh: GitHub, owner: string, name: string) {
   const vars = { owner, name };
 
   // まず全項目を 1 回で取る。失敗したら項目ごとに分けて取り直す
-  const full = await gh.graphql<Result>(repoQuery(CORE_FIELDS + OPTIONAL_SECTIONS.join('\n')), vars);
+  const [full, stars] = await Promise.all([
+    gh.graphql<Result>(repoQuery(CORE_FIELDS + OPTIONAL_SECTIONS.join('\n')), vars),
+    gh.graphql<Result>(repoQuery(STARGAZERS), vars).catch(() => null),
+  ]);
   let repo = full.data.repository;
   if (!repo) {
     if (full.errors.some((e) => e.type === 'NOT_FOUND')) throw githubError(full.errors);
@@ -158,6 +163,7 @@ export async function fetchRepo(gh: GitHub, owner: string, name: string) {
       else console.warn('skipped repo section', r.status === 'fulfilled' ? r.value.errors : r.reason);
     }
   }
+  if (stars?.data.repository?.stargazers) repo.stargazers = stars.data.repository.stargazers;
   if (!repo.defaultBranchRef) throw new HTTPException(422, { message: 'コミットがありません' });
   return repo;
 }
