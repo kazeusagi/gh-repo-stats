@@ -70,7 +70,7 @@ export type RepoStats = {
     isArchived: boolean;
     stars: number;
     forks: number;
-    watchers: number;
+    watchers: number | null;
     createdAt: string;
     pushedAt: string | null;
     license: string | null;
@@ -81,19 +81,20 @@ export type RepoStats = {
     headSha: string;
   };
   growth: {
-    stars30d: number;
+    // 取得できなかった項目は null
+    stars30d: number | null;
     stars30dCapped: boolean; // 取得上限に達したので「以上」
-    forks30d: number;
+    forks30d: number | null;
     forks30dCapped: boolean;
   };
   health: {
-    openIssues: number;
-    closedIssues: number;
-    openPRs: number;
-    mergedPRs: number;
+    openIssues: number | null;
+    closedIssues: number | null;
+    openPRs: number | null;
+    mergedPRs: number | null;
     prMergeMedianHours: number | null;
     issueCloseMedianHours: number | null;
-    releases: number;
+    releases: number | null;
     latestRelease: { tag: string; publishedAt: string | null } | null;
   };
   npm: NpmStats | null;
@@ -123,6 +124,7 @@ export type RepoStats = {
     analyzedAt: string;
     durationMs: number;
     commitsTruncated: boolean;
+    warnings: string[];
     cached: boolean;
   };
 };

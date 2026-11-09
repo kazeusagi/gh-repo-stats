@@ -5,8 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatNumber(n: number) {
-  return n.toLocaleString('en-US');
+export function formatNumber(n: number | null) {
+  return n === null ? '—' : n.toLocaleString('en-US');
 }
 
 export function formatCompact(n: number) {

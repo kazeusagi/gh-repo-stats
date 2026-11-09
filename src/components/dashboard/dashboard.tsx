@@ -14,6 +14,11 @@ export function Dashboard({ stats, onRefresh }: { stats: RepoStats; onRefresh: (
   return (
     <>
       <RepoHeader stats={stats} />
+      {meta.warnings?.map((w) => (
+        <p key={w} className="mb-4 rounded-md border border-chart-3/50 bg-chart-3/10 px-3 py-2 text-sm text-chart-3">
+          {w}
+        </p>
+      ))}
       <KpiGrid stats={stats} />
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="flex min-w-0 flex-col gap-4">
