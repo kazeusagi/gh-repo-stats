@@ -5,7 +5,6 @@ export default defineConfig({
   routing: { typedRoutes: true },
   worker: { compatibility_date: '2026-02-24' },
   cloudflare: {
-    // kazeusagi.dev のゾーンが同じ Cloudflare アカウントにある必要がある
     routes: [{ pattern: 'ghrepostats.kazeusagi.dev', custom_domain: true }],
   },
   head: {

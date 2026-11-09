@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "source": {
+    "routes": [
+      {
+        "pattern": "ghrepostats.kazeusagi.dev",
+        "custom_domain": true
+      }
+    ]
+  },
+  "resolved": {
+    "routes": [
+      {
+        "pattern": "ghrepostats.kazeusagi.dev",
+        "custom_domain": true
+      }
+    ],
+    "account_id": "d71cd989d9a84334bbaecf71047b6ad5",
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "gh-repo-stats-db",
+        "database_id": "34fd7fdb-522d-4c86-b6a1-5a251bf7b391",
+        "migrations_dir": "./src/db/migrations"
+      }
+    ],
+    "kv_namespaces": [
+      {
+        "binding": "KV",
+        "id": "d67a0f3952e14f2f9568816fed7412bc"
+      }
+    ],
+    "name": "gh-repo-stats",
+    "compatibility_date": "2026-02-24"
+  },
+  "text": "{\n  \"routes\": [\n    {\n      \"pattern\": \"ghrepostats.kazeusagi.dev\",\n      \"custom_domain\": true\n    }\n  ],\n  \"account_id\": \"d71cd989d9a84334bbaecf71047b6ad5\",\n  \"d1_databases\": [\n    {\n      \"binding\": \"DB\",\n      \"database_name\": \"gh-repo-stats-db\",\n      \"database_id\": \"34fd7fdb-522d-4c86-b6a1-5a251bf7b391\",\n      \"migrations_dir\": \"./src/db/migrations\"\n    }\n  ],\n  \"kv_namespaces\": [\n    {\n      \"binding\": \"KV\",\n      \"id\": \"d67a0f3952e14f2f9568816fed7412bc\"\n    }\n  ],\n  \"name\": \"gh-repo-stats\",\n  \"compatibility_date\": \"2026-02-24\"\n}\n"
+}
