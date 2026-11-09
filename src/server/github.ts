@@ -46,8 +46,16 @@ export class GitHub {
     return { data: json.data, errors };
   }
 
+  /** GraphQL の残りポイント（この問い合わせ自体はポイントを消費しない） */
+  async graphqlRateLimit() {
+    type RateLimit = { resources: { graphql: { limit: number; remaining: number; reset: number } } };
+    const res = await this.rest<RateLimit>('/rate_limit');
+    return res.resources.graphql;
+  }
+
   async rest<T>(path: string) {
     const res = await fetch(`${API}${path}`, { headers: this.headers() });
+    if (res.status === 401) throw new HTTPException(500, { message: 'GITHUB_TOKEN が無効です' });
     if (!res.ok) throw new HTTPException(502, { message: `GitHub API エラー (${res.status}): ${await res.text()}` });
     return (await res.json()) as T;
   }

@@ -9,6 +9,8 @@ export default defineEnv({
   MAX_BLAME_FILES: number().default(200),
   // 分析結果を保持する秒数（30 日）
   CACHE_TTL: number().default(30 * 86400),
+  // GraphQL の残りポイントがこれを下回ったら、新しい分析を断る（1 回の分析で約 60 ポイント）
+  RATE_LIMIT_RESERVE: number().default(300),
   // 分析してから再分析を受け付けるまでの秒数（1 日）
   REFRESH_INTERVAL: number().default(86400),
 });
