@@ -63,6 +63,8 @@ npm run dev
 
 ## デプロイ
 
+本番は https://ghrepostats.kazeusagi.dev です（`void.config.ts` の `cloudflare.routes` でカスタムドメインを設定）。`kazeusagi.dev` のゾーンがデプロイ先と同じ Cloudflare アカウントにあれば、DNS レコードと証明書は Cloudflare が自動で作ります。
+
 ```sh
 npx void secret put GITHUB_TOKEN
 npm run deploy   # D1 のマイグレーションも適用される
